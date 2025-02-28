@@ -4,24 +4,32 @@ import { useEffect, useRef } from 'react';
 // Remove the direct p5 import
 // import p5 from 'p5';
 
+let hasRun = false;
+
 const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
   const sketchRef = useRef<HTMLDivElement>(null);
+  const filesRef = useRef(currentFiles);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    filesRef.current = currentFiles;
+  }, [currentFiles]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !filesRef.current.length) return;
 
     // Dynamically import p5
     import('p5').then((p5Module) => {
       const p5 = p5Module.default;
       const sketch = new p5((p: any) => {
-        console.log("current files: ", currentFiles)
+        console.log("current files: ", filesRef.current)
         // set initial random file
-        let currentRandomFile = currentFiles.length > 0 ? currentFiles[p.floor(p.random(0, currentFiles.length))] : null
+        let currentRandomFile = filesRef.current.length > 0 ? 
+          filesRef.current[p.floor(p.random(0, filesRef.current.length))] : null
         let currentFileName = getRandomFileName();
         let backgroundImg: any;
         let bgWidth, bgHeight;
         let theConfirm, thePrompt;
-        let numOfFilesLeft = currentFiles.length;
+        let numOfFilesLeft = filesRef.current.length;
 
         function getRandomFileName() {
           const currentRandomFileName = currentRandomFile?.Key ?? ""
@@ -30,7 +38,7 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
         }
 
         function getNumberOfFilesLeft() {
-          return currentFiles.length;
+          return filesRef.current.length;
         }
 
         function getRandomFileFact() {
@@ -112,16 +120,22 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
             bgHeight = bgWidth / imgAspect;
           }
           
-          // Display the background image without stretching
-          p.image(backgroundImg, 0, 0, bgWidth, bgHeight);
+          // Calculate position to center the image
+          const x = (p.windowWidth - bgWidth) / 2;
+          const y = (p.windowHeight - bgHeight) / 2;
+          
+          // Display the background image centered
+          p.image(backgroundImg, x, y, bgWidth, bgHeight);
 
-          setTimeout(async () => {
+          const runAlertSequence = async () => {
+            hasRun = true;
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
             alert("I want my computer to forget like I do.");
             alert("I feel the weight of all my the files, held, but no longer in use.");
             alert("I have so many files. " + numOfFilesLeft + " files in total.");
             alert("I want to be able to forget them, to delete them, but what if I need them later?");
-            
-            theConfirm = confirm("Could you hold onto " + currentFileName + " for me?");
+      theConfirm = confirm("Could you hold onto " + currentFileName + " for me?");
             console.log("CONFIRMING: ", theConfirm);
             
             if (theConfirm) {
@@ -132,12 +146,17 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
             
             thePrompt = prompt("Just in case I need it back later, how can I get in touch?");
             console.log(thePrompt);
-
+      
             if (thePrompt) {
+
               await storeContact(thePrompt, currentFileName);
             }
-          }, 500);
-        };
+          };
+      
+          if(!hasRun){
+            runAlertSequence();
+          }
+        }
 
         p.draw = () => {
           // p.background(230);
@@ -153,7 +172,7 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
         sketch.remove();
       };
     });
-  }, [currentFiles]);
+  }, []);
 
   return <div ref={sketchRef}></div>;
 };
