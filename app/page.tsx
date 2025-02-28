@@ -2,11 +2,10 @@
 import { useState, useEffect } from "react"
 import P5Wrapper from "./components/sketch"
 
-// TODO: change this variable
-const NUM_TOTAL_FILES = 100;
 
 export default function Home() {
   const [currentFiles, setCurrentFiles] = useState<any[]>([]);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   // List all files
   const listFiles = async () => {
@@ -19,6 +18,12 @@ export default function Home() {
     listFiles();
   }, []);
 
+  useEffect(() => {
+    if (currentFiles.length > 0 && !hasLoaded) {
+      setHasLoaded(true);
+    }
+  }, [currentFiles, hasLoaded]);
+
   // Get a specific file
   const getFile = async (key: string) => {
     const response = await fetch(`/api/s3?key=${encodeURIComponent(key)}`);  // Simplified URL
@@ -26,9 +31,10 @@ export default function Home() {
     console.log(data.data);
   };
 
+  console.log("hi ")
   return (
     <div className="">
-      <P5Wrapper currentFiles={currentFiles} />
-    </div>
+      { hasLoaded ? <P5Wrapper currentFiles={currentFiles} /> : null }
+      </div>
   );
 }

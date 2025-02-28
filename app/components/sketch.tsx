@@ -1,6 +1,8 @@
 'use client'
+
 import { useEffect, useRef } from 'react';
-import p5 from 'p5';
+// Remove the direct p5 import
+// import p5 from 'p5';
 
 const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
   const sketchRef = useRef<HTMLDivElement>(null);
@@ -8,57 +10,40 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const sketch = new p5((p: p5) => {
+    // Dynamically import p5
+    import('p5').then((p5Module) => {
+      const p5 = p5Module.default;
+      const sketch = new p5((p: any) => {
+        console.log("current files: ", currentFiles)
         // set initial random file
-        let buttonOK: p5.Element;
-        let buttonCancel: p5.Element;
-        let popupWidth = 500;
-        let popupHeight = 180;
-        let popupX: number, popupY: number;
-        let fontSize = 16;
-        let popupVisible = true;
-        let buttonsVisible = true;
         let currentRandomFile = currentFiles.length > 0 ? currentFiles[p.floor(p.random(0, currentFiles.length))] : null
         let currentFileName = getRandomFileName();
-        let message = "Would you like to download " + currentFileName + "? I do not remember taking it.";
+        let backgroundImg: any;
+        let bgWidth, bgHeight;
+        let theConfirm, thePrompt;
+        let numOfFilesLeft = currentFiles.length;
 
-      function getRandomFileName() {
-        const currentRandomFileName = currentRandomFile?.Key ?? ""
+        function getRandomFileName() {
+          const currentRandomFileName = currentRandomFile?.Key ?? ""
 
-        return currentRandomFileName
-      }
-
-      function getNumberOfFilesLeft() {
-        return currentFiles.length;
-      }
-
-      function getRandomFileFact() {
-        return "really cool";
-      }
-
-      function wrapText(text: string, maxWidth: number) {
-        let words = text.split(" ");
-        let lines = [];
-        let currentLine = "";
-
-        for (let i = 0; i < words.length; i++) {
-          let testLine = currentLine + words[i] + " ";
-          let testWidth = p.textWidth(testLine);
-          if (testWidth > maxWidth && currentLine !== "") {
-            lines.push(currentLine);
-            currentLine = words[i] + " ";
-          } else {
-            currentLine = testLine;
-          }
+          return currentRandomFileName
         }
-        lines.push(currentLine);
-        return lines;
-      }
 
-      async function triggerDownload(fileName: string) {
-        try {
+        function getNumberOfFilesLeft() {
+          return currentFiles.length;
+        }
+
+        function getRandomFileFact() {
+          return "really cool";
+        }
+
+        async function triggerDownload(fileName: string) {
+          try {
             const response = await fetch(`/api/s3?key=${encodeURIComponent(fileName)}`)
+            console.log("response :: ", response)
             const blob = await response.blob();
+            
+            console.log("blob :: ", blob)
 
             const url = window.URL.createObjectURL(blob);
 
@@ -69,124 +54,105 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
             downloadLink.click();
             document.body.removeChild(downloadLink);
             window.URL.revokeObjectURL(url);
-        } catch (error) {
+          } catch (error) {
             console.log("Error downloading file: ", error)
+          }
         }
-      }
 
-      function flashPopupAndButtons() {
-        popupVisible = false;
-        buttonsVisible = false;
-        setTimeout(() => {
-          popupVisible = true;
-          buttonsVisible = true;
-        }, 300);
-      }
-
-      function updatePopupPosition() {
-        popupWidth = Math.min(500, p.width * 0.8);
-        popupHeight = Math.min(180, p.height * 0.4);
-        popupX = p.width / 2 - popupWidth / 2;
-        popupY = p.height / 2 - popupHeight / 2;
-        positionButtons();
-      }
-
-      function positionButtons() {
-        if (buttonOK && buttonCancel) {
-          buttonOK.position(popupX + popupWidth - 80, popupY + popupHeight - 40);
-          buttonCancel.position(popupX + popupWidth - 150, popupY + popupHeight - 40);
+        async function storeContact(contact: string, fileName: string) {
+          try {
+            console.log("here's the contact : ", contact)
+            console.log(" file : ", fileName)
+            const response = await fetch('/api/dynamo', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ contact, fileName }),
+            });
+            
+            if (!response.ok) {
+              throw new Error('Failed to store contact information');
+            }
+          } catch (error) {
+            console.error('Error storing contact:', error);
+          }
         }
-      }
 
-      function okPressed() {
-        flashPopupAndButtons();
-        currentFileName = getRandomFileName();
-        message = "Thank you. The file has been deleted off my device and is now on yours. Would you like to download file " + 
-                 currentFileName + "? I do not remember taking it. I have " + getNumberOfFilesLeft() + " files left.";
-        triggerDownload(currentFileName);
-        // set new random file
-        currentRandomFile = currentFiles.length > 0 ? currentFiles[p.floor(p.random(0, currentFiles.length))] : null
-      }
+        async function deleteFile(fileName: string) {
+          try {
+            const response = await fetch(`/api/s3/delete?key=${encodeURIComponent(fileName)}`, {
+              method: 'DELETE',
+            });
+            
+            if (!response.ok) {
+              throw new Error('Failed to delete file');
+            }
+            
+            console.log('File deleted successfully');
+          } catch (error) {
+            console.error('Error deleting file:', error);
+          }
+        }
 
-      function cancelPressed() {
-        flashPopupAndButtons();
-        message = "Are you sure? " + currentFileName + " is " + getRandomFileFact() + ". You probably want it.";
-      }
+        p.preload = () => {
+          backgroundImg = p.loadImage('/desktop-background.png')
+        }
 
-      p.setup = () => {
-        p.createCanvas(p.windowWidth, p.windowHeight);
-        p.textAlign(p.LEFT, p.TOP);
-        p.textFont('Helvetica');
-        updatePopupPosition();
+        p.setup = () => {
+          p.createCanvas(p.windowWidth, p.windowHeight);
+          let imgAspect = backgroundImg.width / backgroundImg.height;
+    
+          // Calculate the new width and height to maintain the aspect ratio
+          if (p.windowWidth / p.windowHeight > imgAspect) {
+            bgHeight = p.windowHeight;
+            bgWidth = bgHeight * imgAspect;
+          } else {
+            bgWidth = p.windowWidth;
+            bgHeight = bgWidth / imgAspect;
+          }
+          
+          // Display the background image without stretching
+          p.image(backgroundImg, 0, 0, bgWidth, bgHeight);
 
-        buttonOK = p.createButton('OK');
-        buttonOK.size(70, 30);
-        buttonOK.style('background-color', '#28282800');
-        buttonOK.style('color', '#2196F3');
-        buttonOK.style('border', 'none');
-        buttonOK.style('font-family', 'Helvetica');
-        buttonOK.style('font-size', fontSize + 'px');
-        buttonOK.style('font-weight', 'bold');
-        buttonOK.mousePressed(okPressed);
+          setTimeout(async () => {
+            alert("I want my computer to forget like I do.");
+            alert("I feel the weight of all my the files, held, but no longer in use.");
+            alert("I have so many files. " + numOfFilesLeft + " files in total.");
+            alert("I want to be able to forget them, to delete them, but what if I need them later?");
+            
+            theConfirm = confirm("Could you hold onto " + currentFileName + " for me?");
+            console.log("CONFIRMING: ", theConfirm);
+            
+            if (theConfirm) {
+              await triggerDownload(currentFileName);
+            }
+            
+            alert("Thank you. I feel relieved. I can now delete " + currentFileName + " off of my drive.");
+            
+            thePrompt = prompt("Just in case I need it back later, how can I get in touch?");
+            console.log(thePrompt);
 
-        buttonCancel = p.createButton('Cancel');
-        buttonCancel.size(70, 30);
-        buttonCancel.style('background-color', '#28282800');
-        buttonCancel.style('color', '#2196F3');
-        buttonCancel.style('border', 'none');
-        buttonCancel.style('font-family', 'Helvetica');
-        buttonCancel.style('font-size', fontSize + 'px');
-        buttonCancel.mousePressed(cancelPressed);
+            if (thePrompt) {
+              await storeContact(thePrompt, currentFileName);
+            }
+          }, 500);
+        };
 
-        positionButtons();
+        p.draw = () => {
+          // p.background(230);
+        };
+
+        p.windowResized = () => {
+          p.resizeCanvas(p.windowWidth, p.windowHeight);
+        };
+
+      }, sketchRef.current!);
+
+      return () => {
+        sketch.remove();
       };
-
-      p.draw = () => {
-        p.background(230);
-
-        if (popupVisible) {
-          (p.drawingContext as any).shadowColor = p.color(255, 255, 255, 150);
-          (p.drawingContext as any).shadowBlur = 50;
-          (p.drawingContext as any).shadowOffsetX = 0;
-          (p.drawingContext as any).shadowOffsetY = 0;
-
-          p.fill(40);
-          p.rect(popupX, popupY, popupWidth, popupHeight, 10);
-
-          (p.drawingContext as any).shadowColor = p.color(0, 0);
-
-          p.fill(255);
-          p.textSize(fontSize);
-          let textX = popupX + 20;
-          let textY = popupY + 40;
-
-          let wrappedText = wrapText(message, popupWidth - 40);
-          let lineHeight = fontSize * 1.5;
-
-          wrappedText.forEach((line, i) => {
-            p.text(line, textX, textY + i * lineHeight);
-          });
-        }
-
-        if (buttonsVisible) {
-          buttonOK.show();
-          buttonCancel.show();
-        } else {
-          buttonOK.hide();
-          buttonCancel.hide();
-        }
-      };
-
-      p.windowResized = () => {
-        p.resizeCanvas(p.windowWidth, p.windowHeight);
-        updatePopupPosition();
-      };
-
-    }, sketchRef.current!);
-
-    return () => {
-      sketch.remove();
-    };
+    });
   }, [currentFiles]);
 
   return <div ref={sketchRef}></div>;
