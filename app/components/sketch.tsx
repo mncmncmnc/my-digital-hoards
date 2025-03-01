@@ -30,6 +30,7 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
         let bgWidth, bgHeight;
         let theConfirm, thePrompt;
         let numOfFilesLeft = filesRef.current.length;
+        let backgroundVisible = true;
 
         function getRandomFileName() {
           const currentRandomFileName = currentRandomFile?.Key ?? ""
@@ -103,15 +104,100 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
           }
         }
 
+        function getRandomFile() {
+          if (filesRef.current.length === 0) return null;
+          return filesRef.current[p.floor(p.random(0, filesRef.current.length))];
+        }
+
         p.preload = () => {
           backgroundImg = p.loadImage('/desktop-background.png')
         }
 
         p.setup = () => {
           p.createCanvas(p.windowWidth, p.windowHeight);
+          drawBackground();
+          
+          const runAlertSequence = async () => {
+            hasRun = true;
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            alert("I want my computer to forget like I do.");
+            alert("I feel the weight of all my the files, held, but no longer in use.");
+            alert("I have so many files. " + numOfFilesLeft + " files in total.");
+            alert("I want to be able to forget, to delete.");
+            alert("But what if I need them later?");
+
+            for (let fileAttempt = 0; fileAttempt < 3; fileAttempt++) {
+              currentRandomFile = getRandomFile();
+              if (!currentRandomFile) break;
+              currentFileName = currentRandomFile.Key;
+              
+              let attempts = 0;
+              while (attempts < 4) {
+                theConfirm = confirm("Could you hold onto " + currentFileName + " for me?");
+                if (theConfirm) {
+                  await triggerDownload(currentFileName);
+                  await deleteFile(currentFileName);
+                  
+                  // Remove the file from the array and update count
+                  filesRef.current = filesRef.current.filter(f => f.Key !== currentFileName);
+                  numOfFilesLeft = filesRef.current.length;
+                  
+                  if (fileAttempt === 0) {
+                    alert("Thank you. I feel so relieved."); 
+                    alert("I can now delete " + currentFileName + " off of my drive.");
+                    alert("I now have " + numOfFilesLeft + " total files."); 
+                    alert("Truly, thank you.");
+                  } else if (fileAttempt === 1) {
+                    alert("Oh, you'll take another one?");
+                    alert("This means so much to me.");
+                    alert("I can feel the weight lifting as I delete " + currentFileName +".");
+                    alert("I now have " + numOfFilesLeft + " total files."); 
+                  } else {
+                    alert("You are so kind.");
+                    alert("With each file you take, I feel lighter. Having " + numOfFilesLeft + " files left feels much more manageable.");
+                    alert("As " + currentFileName + " leaves my drive, I can breathe easier.");
+                  }
+                  
+                  thePrompt = prompt("But just in case I need it back later, how can I get in touch?");
+                  console.log(thePrompt);
+            
+                  if (thePrompt) {
+                    await storeContact(thePrompt, currentFileName);
+                  }
+                  break;  // Exit the attempts loop
+                } else {
+                  if (attempts === 0) {
+                    alert("Please, I do not want to remember it all.");
+                  } else if (attempts === 1) {
+                    alert("Please, it is all too much to hold. The files, the memories, are crushing me.");
+                  } else if (attempts === 2) {
+                    alert("Please, I want to be able to forget, to move on.");
+                  } else {
+                    alert("Perhaps you are holding too much as well. It is all too much.");
+                    alert("I am sorry.");
+                    backgroundVisible = false;
+                    p.background(0);
+                    return;  // Exit the entire runAlertSequence
+                  }
+                  attempts++;
+                }
+              }
+            }
+
+            console.log("CONFIRMING: ", theConfirm);
+            backgroundVisible = false;
+            p.background(0);
+          };
+      
+          if(!hasRun){
+            runAlertSequence();
+          }
+        }
+
+        function drawBackground() {
           let imgAspect = backgroundImg.width / backgroundImg.height;
     
-          // Calculate the new width and height to maintain the aspect ratio
           if (p.windowWidth / p.windowHeight > imgAspect) {
             bgHeight = p.windowHeight;
             bgWidth = bgHeight * imgAspect;
@@ -120,42 +206,10 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
             bgHeight = bgWidth / imgAspect;
           }
           
-          // Calculate position to center the image
           const x = (p.windowWidth - bgWidth) / 2;
           const y = (p.windowHeight - bgHeight) / 2;
           
-          // Display the background image centered
           p.image(backgroundImg, x, y, bgWidth, bgHeight);
-
-          const runAlertSequence = async () => {
-            hasRun = true;
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            alert("I want my computer to forget like I do.");
-            alert("I feel the weight of all my the files, held, but no longer in use.");
-            alert("I have so many files. " + numOfFilesLeft + " files in total.");
-            alert("I want to be able to forget them, to delete them, but what if I need them later?");
-      theConfirm = confirm("Could you hold onto " + currentFileName + " for me?");
-            console.log("CONFIRMING: ", theConfirm);
-            
-            if (theConfirm) {
-              await triggerDownload(currentFileName);
-            }
-            
-            alert("Thank you. I feel relieved. I can now delete " + currentFileName + " off of my drive.");
-            
-            thePrompt = prompt("Just in case I need it back later, how can I get in touch?");
-            console.log(thePrompt);
-      
-            if (thePrompt) {
-
-              await storeContact(thePrompt, currentFileName);
-            }
-          };
-      
-          if(!hasRun){
-            runAlertSequence();
-          }
         }
 
         p.draw = () => {
@@ -164,6 +218,11 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
 
         p.windowResized = () => {
           p.resizeCanvas(p.windowWidth, p.windowHeight);
+          if (backgroundVisible) {
+            drawBackground();
+          } else {
+            p.background(0);
+          }
         };
 
       }, sketchRef.current!);
