@@ -225,14 +225,15 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
             
             // Calculate font size and padding based on background dimensions
             const fontScale = Math.min(bgWidth, bgHeight) * 0.012;
-            const paddingX = bgWidth * 0.01;
+            const dateTimeFontScale = Math.min(bgWidth, bgHeight) * 0.0112;  // Increased from 0.010
+            const paddingX = bgWidth * 0.008;  // Decreased from 0.015 to move text right
             const paddingY = bgHeight * 0.005;
             
-            // Draw the date/time
+            // Draw the date/time with smaller font
             p.fill(210);
             p.noStroke();
-            p.textFont('Helvetica-Bold');  // Make date/time bold
-            p.textSize(fontScale);
+            p.textFont('Helvetica-Bold');
+            p.textSize(dateTimeFontScale);  // Use slightly bigger font size for date/time
             p.textAlign(p.RIGHT, p.TOP);
             
             const now = new Date();
@@ -251,6 +252,9 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
             const timeX = (p.windowWidth + bgWidth) / 2 - paddingX;
             const timeY = (p.windowHeight - bgHeight) / 2 + paddingY;
             p.text(dateTimeString, timeX, timeY);
+
+            // Reset font size for file list
+            p.textSize(fontScale);
 
             // Draw file names
             p.textAlign(p.LEFT, p.TOP);
