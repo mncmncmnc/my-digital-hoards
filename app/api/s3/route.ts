@@ -9,6 +9,28 @@ const s3Client = new S3Client({
   },
 });
 
+// Enhanced Fisher-Yates shuffle with multiple passes
+function shuffleArray(array: any[]) {
+  // Perform multiple shuffles
+  for (let pass = 0; pass < 3; pass++) {
+    // Regular Fisher-Yates shuffle
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    
+    // Add a reverse pass for even more randomness
+    array.reverse();
+    
+    // Add another random shuffle pass from the start
+    for (let i = 0; i < array.length - 1; i++) {
+      const j = Math.floor(Math.random() * (array.length - i)) + i;
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+  }
+  return array;
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -37,14 +59,29 @@ export async function GET(request: Request) {
       });
     }
     
-    // List all files in the bucket
-    const command = new ListObjectsV2Command({
-      Bucket: bucketName,
-    });
+    // List all files in the bucket with pagination
+    let allFiles = [];
+    let continuationToken = undefined;
     
-    const response = await s3Client.send(command);
+    do {
+      const command = new ListObjectsV2Command({
+        Bucket: bucketName,
+        ContinuationToken: continuationToken,
+      });
+      
+      const response = await s3Client.send(command);
+      
+      if (response.Contents) {
+        allFiles = [...allFiles, ...response.Contents];
+      }
+      
+      continuationToken = response.NextContinuationToken;
+    } while (continuationToken);
     
-    return NextResponse.json({ files: response.Contents });
+    // Create a copy and apply enhanced shuffling
+    const shuffledFiles = shuffleArray([...allFiles]);
+    
+    return NextResponse.json({ files: shuffledFiles });
     
   } catch (error) {
     console.error('Error accessing S3:', error);

@@ -118,7 +118,7 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
             
             alert("I want my computer to forget like I do.");
             alert("I feel the weight of all my the files, held, but no longer in use.");
-            alert("I have so many files. " + numOfFilesLeft + " files in total.");
+            alert("I have so many files. " + getNumberOfFilesLeft() + " files in total.");
             alert("I want to be able to forget, to delete.");
             alert("But what if I need them later?");
 
