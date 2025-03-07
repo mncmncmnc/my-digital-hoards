@@ -116,8 +116,9 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
             hasRun = true;
             await new Promise(resolve => setTimeout(resolve, 500));
             
+            // Initial sequence
             alert("I want my computer to forget like I do.");
-            alert("I feel the weight of all my the files, held, but no longer in use.");
+            alert("I feel the weight of all my files, held, but no longer in use.");
             alert("I have so many files. " + getNumberOfFilesLeft() + " files in total.");
             alert("I want to be able to forget, to delete.");
             alert("But what if I need them later?");
@@ -154,8 +155,12 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
                     alert("I have deleted " + deletedFileName + " off of my drive.");
                     alert("I now have " + numOfFilesLeft + " total files."); 
                     alert("Truly, thank you.");
+                    
+                    // Only ask for contact info once
+                    thePrompt = prompt("But just in case I need it back later, how can I get in touch?");
+                    console.log(thePrompt);
                   } else if (fileAttempt === 1) {
-                    alert("Oh, you'll take another one?");
+                    alert("You'll help with another?");
                     alert("This means so much to me.");
                     alert("Everything feels a little lighter now that " + deletedFileName +" is gone.");
                     alert("I now have " + numOfFilesLeft + " total files."); 
@@ -166,11 +171,9 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
                     alert("Thank you for holding these for me.");
                   }
                   
-                  thePrompt = prompt("But just in case I need it back later, how can I get in touch?");
-                  console.log(thePrompt);
-            
+                  // Store contact info for every file if we have it
                   if (thePrompt) {
-                    await storeContact(thePrompt, currentFileName);
+                    await storeContact(thePrompt, deletedFileName);
                   }
                   break;  // Exit the attempts loop
                 } else {
@@ -179,7 +182,7 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
                   } else if (attempts === 1) {
                     alert("Please, it is all too much to hold. The files, the memories, are crushing me.");
                   } else if (attempts === 2) {
-                    alert("Please, I want to be able to forget, to move on.");
+                    alert("I just want to move forward, to let go.");
                   } else {
                     alert("Perhaps you are holding too much as well. It is all too much.");
                     alert("I am sorry.");
