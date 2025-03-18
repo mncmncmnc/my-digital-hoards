@@ -1,5 +1,9 @@
-import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, ListObjectsV2Command, GetObjectCommand, _Object, ListObjectsV2CommandOutput } from "@aws-sdk/client-s3";
 import { NextResponse } from "next/server";
+
+// Configure route for static export
+export const dynamic = 'force-static';
+export const revalidate = false;
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION!,
@@ -10,7 +14,7 @@ const s3Client = new S3Client({
 });
 
 // Enhanced Fisher-Yates shuffle with multiple passes
-function shuffleArray(array: any[]) {
+function shuffleArray(array: _Object[]): _Object[] {
   // Perform multiple shuffles
   for (let pass = 0; pass < 3; pass++) {
     // Regular Fisher-Yates shuffle
@@ -36,6 +40,10 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const bucketName = process.env.AWS_BUCKET_NAME;
     
+    if (!bucketName) {
+      throw new Error('AWS_BUCKET_NAME is not defined');
+    }
+    
     // If a specific file is requested
     const key = searchParams.get('key');
     
@@ -60,22 +68,22 @@ export async function GET(request: Request) {
     }
     
     // List all files in the bucket with pagination
-    let allFiles = [];
-    let continuationToken = undefined;
+    const allFiles: _Object[] = [];
+    let continuationToken: string | undefined = undefined;
     
     do {
-      const command = new ListObjectsV2Command({
+      const listCommand = new ListObjectsV2Command({
         Bucket: bucketName,
         ContinuationToken: continuationToken,
       });
       
-      const response = await s3Client.send(command);
+      const listResponse: ListObjectsV2CommandOutput = await s3Client.send(listCommand);
       
-      if (response.Contents) {
-        allFiles = [...allFiles, ...response.Contents];
+      if (listResponse.Contents) {
+        allFiles.push(...listResponse.Contents);
       }
       
-      continuationToken = response.NextContinuationToken;
+      continuationToken = listResponse.NextContinuationToken;
     } while (continuationToken);
     
     // Create a copy and apply enhanced shuffling

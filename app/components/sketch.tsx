@@ -1,18 +1,50 @@
 'use client'
 
-import { useEffect, useRef } from 'react';
-// Remove the direct p5 import
-// import p5 from 'p5';
+import { useEffect, useRef, useState } from 'react';
+import type p5 from 'p5';
+import { s3Client, bucketName } from '../utils/aws-config';
+import { ListObjectsV2Command, GetObjectCommand, DeleteObjectCommand, _Object } from '@aws-sdk/client-s3';
 
 let hasRun = false;
 
-const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
+interface S3File {
+  Key: string;
+  [key: string]: any;
+}
+
+const P5Wrapper = () => {
   const sketchRef = useRef<HTMLDivElement>(null);
-  const filesRef = useRef(currentFiles);
+  const [files, setFiles] = useState<S3File[]>([]);
+  const filesRef = useRef<S3File[]>([]);
 
   useEffect(() => {
-    filesRef.current = currentFiles;
-  }, [currentFiles]);
+    // Load initial files
+    const loadFiles = async () => {
+      try {
+        const command = new ListObjectsV2Command({
+          Bucket: bucketName,
+        });
+        
+        const response = await s3Client.send(command);
+        if (response.Contents) {
+          // Filter out any objects without a Key and convert to S3File type
+          const validFiles = response.Contents.filter((obj): obj is S3File => 
+            typeof obj.Key === 'string'
+          );
+          setFiles(validFiles);
+          filesRef.current = validFiles;
+        }
+      } catch (error) {
+        console.error('Error loading files:', error);
+      }
+    };
+
+    loadFiles();
+  }, []);
+
+  useEffect(() => {
+    filesRef.current = files;
+  }, [files]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !filesRef.current.length) return;
@@ -20,15 +52,15 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
     // Dynamically import p5
     import('p5').then((p5Module) => {
       const p5 = p5Module.default;
-      const sketch = new p5((p: any) => {
+      const sketch = new p5((p: p5) => {
         console.log("current files: ", filesRef.current)
         // set initial file to first in list
-        let currentRandomFile = filesRef.current.length > 0 ? filesRef.current[0] : null
+        let currentRandomFile = filesRef.current.length > 0 ? filesRef.current[0] : null;
         let currentFileName = currentRandomFile?.Key ?? "";
         let fileIcon: p5.Image;
-        let backgroundImg: any;
-        let bgWidth, bgHeight;
-        let theConfirm, thePrompt;
+        let backgroundImg: p5.Image;
+        let bgWidth: number, bgHeight: number;
+        let theConfirm: boolean, thePrompt: string | null;
         let numOfFilesLeft = filesRef.current.length;
         let backgroundVisible = true;
 
@@ -42,15 +74,22 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
 
         async function triggerDownload(fileName: string) {
           try {
-            const response = await fetch(`/api/s3?key=${encodeURIComponent(fileName)}`)
-            console.log("response :: ", response)
-            const blob = await response.blob();
+            const command = new GetObjectCommand({
+              Bucket: bucketName,
+              Key: fileName,
+            });
             
-            console.log("blob :: ", blob)
+            const response = await s3Client.send(command);
+            if (!response.Body) throw new Error('No response body');
+            
+            // Convert the response body to an array buffer and then to a blob
+            const arrayBuffer = await response.Body.transformToByteArray();
+            const blob = new Blob([arrayBuffer], { 
+              type: response.ContentType || 'application/octet-stream' 
+            });
 
             const url = window.URL.createObjectURL(blob);
-
-            let downloadLink = document.createElement('a');
+            const downloadLink = document.createElement('a');
             downloadLink.href = url;
             downloadLink.download = fileName;
             document.body.appendChild(downloadLink);
@@ -58,40 +97,26 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
             document.body.removeChild(downloadLink);
             window.URL.revokeObjectURL(url);
           } catch (error) {
-            console.log("Error downloading file: ", error)
+            console.error("Error downloading file: ", error);
           }
         }
 
         async function storeContact(contact: string, fileName: string) {
-          try {
-            console.log("here's the contact : ", contact)
-            console.log(" file : ", fileName)
-            const response = await fetch('/api/dynamo', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ contact, fileName }),
-            });
-            
-            if (!response.ok) {
-              throw new Error('Failed to store contact information');
-            }
-          } catch (error) {
-            console.error('Error storing contact:', error);
-          }
+          // Store contact info in localStorage for now
+          // You can implement a more permanent solution later
+          const contacts = JSON.parse(localStorage.getItem('contacts') || '{}');
+          contacts[fileName] = contact;
+          localStorage.setItem('contacts', JSON.stringify(contacts));
         }
 
         async function deleteFile(fileName: string) {
           try {
-            const response = await fetch(`/api/s3/delete?key=${encodeURIComponent(fileName)}`, {
-              method: 'DELETE',
+            const command = new DeleteObjectCommand({
+              Bucket: bucketName,
+              Key: fileName,
             });
             
-            if (!response.ok) {
-              throw new Error('Failed to delete file');
-            }
-            
+            await s3Client.send(command);
             console.log('File deleted successfully');
           } catch (error) {
             console.error('Error deleting file:', error);
@@ -100,7 +125,7 @@ const P5Wrapper = ({ currentFiles }: { currentFiles: any[]}) => {
 
         function getFirstFile() {
           if (filesRef.current.length === 0) return null;
-          return filesRef.current[0];  // Get the first file from the list
+          return filesRef.current[0];
         }
 
         p.preload = () => {
